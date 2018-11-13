@@ -18,7 +18,10 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Vertx;
+import io.vertx.core.debugging.DebuggingHeader;
+import io.vertx.core.debugging.DebuggingVerticle;
 import io.vertx.core.eventbus.*;
+import io.vertx.core.http.CaseInsensitiveHeaders;
 import io.vertx.core.impl.VertxInternal;
 import io.vertx.core.impl.utils.ConcurrentCyclicSequence;
 import io.vertx.core.logging.Logger;
@@ -44,6 +47,8 @@ public class EventBusImpl implements EventBus, MetricsProvider {
 
   private static final Logger log = LoggerFactory.getLogger(EventBusImpl.class);
 
+  protected final String DEBUGGING_HEADER_NAME = "VERTX-DEBUG";
+
   private final List<Handler<DeliveryContext>> sendInterceptors = new CopyOnWriteArrayList<>();
   private final List<Handler<DeliveryContext>> receiveInterceptors = new CopyOnWriteArrayList<>();
   private final AtomicLong replySequence = new AtomicLong(0);
@@ -52,11 +57,17 @@ public class EventBusImpl implements EventBus, MetricsProvider {
   protected final ConcurrentMap<String, ConcurrentCyclicSequence<HandlerHolder>> handlerMap = new ConcurrentHashMap<>();
   protected final CodecManager codecManager = new CodecManager();
   protected volatile boolean started;
+  protected EventBusOptions options;
+  private DebuggingVerticle debuggingVerticle;
 
   public EventBusImpl(VertxInternal vertx) {
     VertxMetrics metrics = vertx.metricsSPI();
     this.vertx = vertx;
     this.metrics = metrics != null ? metrics.createEventBusMetrics() : null;
+    if (vertx.isDebugging()) {
+      debuggingVerticle = new DebuggingVerticle(this);
+      vertx.deployVerticle(debuggingVerticle);
+    }
   }
 
   @Override
@@ -93,7 +104,12 @@ public class EventBusImpl implements EventBus, MetricsProvider {
 
   @Override
   public EventBus send(String address, Object message) {
-    return send(address, message, new DeliveryOptions(), null);
+    return send(address, message, new DeliveryOptions());
+  }
+
+  @Override
+  public EventBus send(String address, Object message, DebuggingOptions debuggingOptions) {
+    return send(address, message, new DeliveryOptions(), debuggingOptions);
   }
 
   @Override
@@ -102,13 +118,29 @@ public class EventBusImpl implements EventBus, MetricsProvider {
   }
 
   @Override
+  public <T> EventBus send(String address, Object message, DebuggingOptions debuggingOptions, Handler<AsyncResult<Message<T>>> replyHandler) {
+    return send(address, message, new DeliveryOptions(), debuggingOptions, replyHandler);
+  }
+
+  @Override
   public EventBus send(String address, Object message, DeliveryOptions options) {
-    return send(address, message, options, null);
+    return send(address, message, options, new DebuggingOptions());
+  }
+
+  @Override
+  public EventBus send(String address, Object message, DeliveryOptions options, DebuggingOptions debuggingOptions) {
+    return send(address, message, options, debuggingOptions, null);
   }
 
   @Override
   public <T> EventBus send(String address, Object message, DeliveryOptions options, Handler<AsyncResult<Message<T>>> replyHandler) {
-    sendOrPubInternal(createMessage(true, address, options.getHeaders(), message, options.getCodecName()), options, replyHandler);
+    send(address, message, options, new DebuggingOptions(), replyHandler);
+    return this;
+  }
+
+  @Override
+  public <T> EventBus send(String address, Object message, DeliveryOptions options, DebuggingOptions debuggingOptions, Handler<AsyncResult<Message<T>>> replyHandler) {
+    sendOrPubInternal(createMessage(true, address, options.getHeaders(), message, options.getCodecName(), debuggingOptions), options, debuggingOptions, replyHandler);
     return this;
   }
 
@@ -144,8 +176,18 @@ public class EventBusImpl implements EventBus, MetricsProvider {
   }
 
   @Override
+  public EventBus publish(String address, Object message, DebuggingOptions debuggingOptions) {
+    return publish(address, message, new DeliveryOptions(), debuggingOptions);
+  }
+
+  @Override
   public EventBus publish(String address, Object message, DeliveryOptions options) {
-    sendOrPubInternal(createMessage(false, address, options.getHeaders(), message, options.getCodecName()), options, null);
+    return publish(address, message, options, new DebuggingOptions());
+  }
+
+  @Override
+  public EventBus publish(String address, Object message, DeliveryOptions options, DebuggingOptions debuggingOptions) {
+    sendOrPubInternal(createMessage(false, address, options.getHeaders(), message, options.getCodecName(), debuggingOptions), options, debuggingOptions, null);
     return this;
   }
 
@@ -225,11 +267,29 @@ public class EventBusImpl implements EventBus, MetricsProvider {
     return metrics;
   }
 
-  protected MessageImpl createMessage(boolean send, String address, MultiMap headers, Object body, String codecName) {
+  private String prepareDebuggingHeader(DebuggingOptions debuggingOptions) {
+    DebuggingHeader debuggingHeader = new DebuggingHeader();
+    debuggingHeader.setContextLabel(debuggingOptions.getDebuggingContextLabel());
+
+    return debuggingHeader.toJsonString();
+  }
+
+  protected MessageImpl createMessage(boolean send, String address, MultiMap headers, Object body,
+                                      String codecName, DebuggingOptions debuggingOptions) {
     Objects.requireNonNull(address, "no null address accepted");
     MessageCodec codec = codecManager.lookupCodec(body, codecName);
+
+    if (vertx.isDebugging()) {
+      String debuggingHeaderValue = prepareDebuggingHeader(debuggingOptions);
+
+      if (headers == null)
+        headers = new CaseInsensitiveHeaders();
+
+      headers.add(DEBUGGING_HEADER_NAME, debuggingHeaderValue);
+    }
+
     @SuppressWarnings("unchecked")
-    MessageImpl msg = new MessageImpl(address, null, headers, body, codec, send, this);
+    MessageImpl msg = new MessageImpl(address, null, headers, body, codec, send, this, debuggingOptions);
     return msg;
   }
 
@@ -432,7 +492,7 @@ public class EventBusImpl implements EventBus, MetricsProvider {
     }
   }
 
-  private <T> void sendOrPubInternal(MessageImpl message, DeliveryOptions options,
+  private <T> void sendOrPubInternal(MessageImpl message, DeliveryOptions options, DebuggingOptions debuggingOptions,
                                      Handler<AsyncResult<Message<T>>> replyHandler) {
     checkStarted();
     HandlerRegistration<T> replyHandlerRegistration = createReplyHandlerRegistration(message, options, replyHandler);

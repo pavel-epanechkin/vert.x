@@ -45,6 +45,9 @@ public interface EventBus extends Measured {
   @Fluent
   EventBus send(String address, Object message);
 
+  @Fluent
+  EventBus send(String address, Object message, DebuggingOptions debuggingOptions);
+
   /**
    * Like {@link #send(String, Object)} but specifying a {@code replyHandler} that will be called if the recipient
    * subsequently replies to the message.
@@ -57,6 +60,9 @@ public interface EventBus extends Measured {
   @Fluent
   <T> EventBus send(String address, Object message, Handler<AsyncResult<Message<T>>> replyHandler);
 
+  @Fluent
+  <T> EventBus send(String address, Object message, DebuggingOptions debuggingOptions, Handler<AsyncResult<Message<T>>> replyHandler);
+
   /**
    * Like {@link #send(String, Object)} but specifying {@code options} that can be used to configure the delivery.
    *
@@ -67,6 +73,9 @@ public interface EventBus extends Measured {
    */
   @Fluent
   EventBus send(String address, Object message, DeliveryOptions options);
+
+  @Fluent
+  EventBus send(String address, Object message, DeliveryOptions options, DebuggingOptions debuggingOptions);
 
   /**
    * Like {@link #send(String, Object, DeliveryOptions)} but specifying a {@code replyHandler} that will be called if the recipient
@@ -81,6 +90,10 @@ public interface EventBus extends Measured {
   @Fluent
   <T> EventBus send(String address, Object message, DeliveryOptions options, Handler<AsyncResult<Message<T>>> replyHandler);
 
+  @Fluent
+  <T> EventBus send(String address, Object message, DeliveryOptions options,
+                    DebuggingOptions debuggingOptions, Handler<AsyncResult<Message<T>>> replyHandler);
+
   /**
    * Publish a message.<p>
    * The message will be delivered to all handlers registered to the address.
@@ -93,6 +106,9 @@ public interface EventBus extends Measured {
   @Fluent
   EventBus publish(String address, Object message);
 
+  @Fluent
+  EventBus publish(String address, Object message, DebuggingOptions debuggingOptions);
+
   /**
    * Like {@link #publish(String, Object)} but specifying {@code options} that can be used to configure the delivery.
    *
@@ -103,6 +119,9 @@ public interface EventBus extends Measured {
    */
   @Fluent
   EventBus publish(String address, Object message, DeliveryOptions options);
+
+  @Fluent
+  EventBus publish(String address, Object message, DeliveryOptions options, DebuggingOptions debuggingOptions);
 
   /**
    * Create a message consumer against the specified address.

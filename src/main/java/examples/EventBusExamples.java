@@ -13,9 +13,7 @@ package examples;
 
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
-import io.vertx.core.eventbus.EventBus;
-import io.vertx.core.eventbus.EventBusOptions;
-import io.vertx.core.eventbus.MessageConsumer;
+import io.vertx.core.eventbus.*;
 import io.vertx.core.http.ClientAuth;
 import io.vertx.core.net.JksOptions;
 
@@ -82,6 +80,7 @@ public class EventBusExamples {
   }
 
   public void example9(EventBus eventBus) {
+    MessageProducer producer = eventBus.publisher("", new DeliveryOptions());
     eventBus.send("news.uk.sport", "Yay! Someone kicked a ball across a patch of grass", ar -> {
       if (ar.succeeded()) {
         System.out.println("Received reply: " + ar.result().body());

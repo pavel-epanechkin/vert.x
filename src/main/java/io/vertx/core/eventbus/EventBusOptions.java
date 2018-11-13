@@ -29,6 +29,8 @@ import java.util.Set;
 @DataObject(generateConverter = true, inheritConverter = true, publicConverter = false)
 public class EventBusOptions extends TCPSSLOptions {
 
+  private boolean debugging = VertxOptions.DEFAULT_DEBUGGING_ENABLED;
+
   private boolean clustered = VertxOptions.DEFAULT_CLUSTERED;
   private String clusterPublicHost = VertxOptions.DEFAULT_CLUSTER_PUBLIC_HOST;
   private int clusterPublicPort = VertxOptions.DEFAULT_CLUSTER_PUBLIC_PORT;
@@ -638,5 +640,13 @@ public class EventBusOptions extends TCPSSLOptions {
     }
     this.clusterPublicPort = clusterPublicPort;
     return this;
+  }
+
+  public boolean isDebugging() {
+    return debugging;
+  }
+
+  public void setDebugging(boolean debugging) {
+    this.debugging = debugging;
   }
 }

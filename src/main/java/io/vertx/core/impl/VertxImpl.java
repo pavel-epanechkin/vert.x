@@ -129,6 +129,7 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
   private final TimeUnit defaultWorkerMaxExecTimeUnit;
   private final CloseHooks closeHooks;
   private final Transport transport;
+  private boolean debugging;
 
   private VertxImpl(VertxOptions options) {
     // Sanity check
@@ -173,6 +174,7 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
     this.addressResolverOptions = options.getAddressResolverOptions();
     this.addressResolver = new AddressResolver(this, options.getAddressResolverOptions());
     this.deploymentManager = new DeploymentManager(this);
+    this.debugging = options.isDebugging();
     if (options.isClustered()) {
       this.clusterManager = getClusterManager(options);
       this.eventBus = new ClusteredEventBus(this, options, clusterManager);
@@ -859,6 +861,10 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
 
   public HAManager haManager() {
     return haManager;
+  }
+
+  public boolean isDebugging() {
+    return debugging;
   }
 
   private class InternalTimerHandler implements Handler<Void>, Closeable {

@@ -33,6 +33,8 @@ import static io.vertx.core.file.FileSystemOptions.DEFAULT_FILE_CACHING_ENABLED;
 @DataObject(generateConverter = true, publicConverter = false)
 public class VertxOptions {
 
+  public static final boolean DEFAULT_DEBUGGING_ENABLED = false;
+
   /**
    * The default number of event loop threads to be used  = 2 * number of cores on the machine
    */
@@ -165,6 +167,7 @@ public class VertxOptions {
   private TimeUnit maxWorkerExecuteTimeUnit = DEFAULT_MAX_WORKER_EXECUTE_TIME_UNIT;
   private TimeUnit warningExceptionTimeUnit = DEFAULT_WARNING_EXCEPTION_TIME_UNIT;
   private TimeUnit blockedThreadCheckIntervalUnit = DEFAULT_BLOCKED_THREAD_CHECK_INTERVAL_UNIT;
+  private boolean debugging = DEFAULT_DEBUGGING_ENABLED;
 
   /**
    * Default constructor
@@ -197,6 +200,7 @@ public class VertxOptions {
     this.maxWorkerExecuteTimeUnit = other.maxWorkerExecuteTimeUnit;
     this.warningExceptionTimeUnit = other.warningExceptionTimeUnit;
     this.blockedThreadCheckIntervalUnit = other.blockedThreadCheckIntervalUnit;
+    this.debugging = other.debugging;
   }
 
   /**
@@ -836,6 +840,14 @@ public class VertxOptions {
     return this;
   }
 
+  public boolean isDebugging() {
+    return debugging;
+  }
+
+  public void setDebugging(boolean debugging) {
+    this.debugging = debugging;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
@@ -853,6 +865,7 @@ public class VertxOptions {
     if (maxWorkerExecuteTime != that.maxWorkerExecuteTime) return false;
     if (maxWorkerExecuteTimeUnit != that.maxWorkerExecuteTimeUnit) return false;
     if (haEnabled != that.haEnabled) return false;
+    if (debugging != that.debugging) return false;
     if (quorumSize != that.quorumSize) return false;
     if (warningExceptionTime != that.warningExceptionTime) return false;
     if (warningExceptionTimeUnit != that.warningExceptionTimeUnit) return false;
@@ -880,6 +893,7 @@ public class VertxOptions {
     result = 31 * result + (int) (maxWorkerExecuteTime ^ (maxWorkerExecuteTime >>> 32));
     result = 31 * result + (clusterManager != null ? clusterManager.hashCode() : 0);
     result = 31 * result + (haEnabled ? 1 : 0);
+    result = 31 * result + (debugging ? 1 : 0);
     result = 31 * result + (preferNativeTransport ? 1 : 0);
     result = 31 * result + quorumSize;
     result = 31 * result + (haGroup != null ? haGroup.hashCode() : 0);
@@ -919,6 +933,7 @@ public class VertxOptions {
         ", eventbus=" + eventBusOptions.toJson() +
         ", warningExceptionTimeUnit=" + warningExceptionTimeUnit +
         ", warningExceptionTime=" + warningExceptionTime +
+        ", debugging=" + debugging +
         '}';
   }
 }

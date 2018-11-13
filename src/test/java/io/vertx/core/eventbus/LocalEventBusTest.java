@@ -86,10 +86,10 @@ public class LocalEventBusTest extends EventBusTestBase {
     assertNullPointerException(() -> eb.send(null, "", new DeliveryOptions()));
     assertNullPointerException(() -> eb.send("", "", (DeliveryOptions) null));
     assertNullPointerException(() -> eb.send(null, "", new DeliveryOptions(), handler -> {}));
-    assertNullPointerException(() -> eb.send("", "", null, handler -> {}));
+    assertNullPointerException(() -> eb.send("", "", new DebuggingOptions(), handler -> {}));
     assertNullPointerException(() -> eb.publish(null, ""));
     assertNullPointerException(() -> eb.publish(null, "", new DeliveryOptions()));
-    assertNullPointerException(() -> eb.publish("", "", null));
+    assertNullPointerException(() -> eb.publish("", "", new DebuggingOptions()));
     assertNullPointerException(() -> eb.consumer(null));
     assertNullPointerException(() -> eb.consumer(null, msg -> {}));
     assertNullPointerException(() -> eb.consumer(ADDRESS1, null));

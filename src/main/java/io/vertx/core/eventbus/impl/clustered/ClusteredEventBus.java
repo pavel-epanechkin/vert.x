@@ -13,6 +13,8 @@ package io.vertx.core.eventbus.impl.clustered;
 
 import io.vertx.core.*;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.debugging.DebuggingHeader;
+import io.vertx.core.eventbus.DebuggingOptions;
 import io.vertx.core.eventbus.EventBusOptions;
 import io.vertx.core.eventbus.MessageCodec;
 import io.vertx.core.eventbus.impl.CodecManager;
@@ -60,7 +62,6 @@ public class ClusteredEventBus extends EventBusImpl {
   private final ConcurrentMap<ServerID, ConnectionHolder> connections = new ConcurrentHashMap<>();
   private final Context sendNoContext;
 
-  private EventBusOptions options;
   private AsyncMultiMap<String, ClusterNodeInfo> subs;
   private Set<String> ownSubs = new ConcurrentHashSet<>();
   private ServerID serverID;
@@ -175,11 +176,11 @@ public class ClusteredEventBus extends EventBusImpl {
   }
 
   @Override
-  protected MessageImpl createMessage(boolean send, String address, MultiMap headers, Object body, String codecName) {
+  protected MessageImpl createMessage(boolean send, String address, MultiMap headers, Object body, String codecName, DebuggingOptions debuggingOptions) {
     Objects.requireNonNull(address, "no null address accepted");
     MessageCodec codec = codecManager.lookupCodec(body, codecName);
     @SuppressWarnings("unchecked")
-    ClusteredMessage msg = new ClusteredMessage(serverID, address, null, headers, body, codec, send, this);
+    ClusteredMessage msg = new ClusteredMessage(serverID, address, null, headers, body, codec, send, this, null);
     return msg;
   }
 
