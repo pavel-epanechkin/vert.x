@@ -30,9 +30,8 @@ import io.vertx.core.spi.metrics.EventBusMetrics;
 import io.vertx.core.spi.metrics.MetricsProvider;
 import io.vertx.core.spi.metrics.VertxMetrics;
 
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
+import java.security.Timestamp;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -268,8 +267,22 @@ public class EventBusImpl implements EventBus, MetricsProvider {
   }
 
   private String prepareDebuggingHeader(DebuggingOptions debuggingOptions) {
-    DebuggingHeader debuggingHeader = new DebuggingHeader();
-    debuggingHeader.setContextLabel(debuggingOptions.getDebuggingContextLabel());
+    ArrayList<String> prevMessageIds = new ArrayList<>();
+    String debuggingLabel = debuggingOptions.getDebuggingContextLabel();
+
+    Message contextMessage = debuggingOptions.getContextMessage();
+    if (contextMessage != null) {
+      Object contextMessageDebuggingHeaderObject = contextMessage.headers().get(DEBUGGING_HEADER_NAME);
+      if (contextMessageDebuggingHeaderObject != null) {
+        DebuggingHeader contextMessageDebuggingHeader
+          = DebuggingHeader.fromJsonString(contextMessageDebuggingHeaderObject.toString());
+        prevMessageIds = contextMessageDebuggingHeader.getPrevMessageIds();
+        prevMessageIds.add(contextMessageDebuggingHeader.getMessageId());
+
+      }
+    }
+
+    DebuggingHeader debuggingHeader = new DebuggingHeader(prevMessageIds, debuggingLabel);
 
     return debuggingHeader.toJsonString();
   }

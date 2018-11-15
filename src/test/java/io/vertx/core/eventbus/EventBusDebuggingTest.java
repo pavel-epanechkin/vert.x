@@ -26,11 +26,15 @@ public class EventBusDebuggingTest extends VertxDebuggingTestBase {
 
     MessageConsumer<String> consumer = eb.consumer("some-address");
     consumer.handler(msg -> {
-//      if (msg.headers().get("VERTX-DEBUG") != null)
-//        testComplete();
+      eb.send("some-address1", "Test1", new DebuggingOptions("Usecase1-Action2", msg));
     });
 
-    eb.send("some-address", "Test", new DebuggingOptions("debuggingContext", null));
+    MessageConsumer<String> consumer1 = eb.consumer("some-address1");
+    consumer.handler(msg -> {
+
+    });
+
+    eb.send("some-address", "Test", new DebuggingOptions("Usecase1-Action1", null));
 
     await();
   }

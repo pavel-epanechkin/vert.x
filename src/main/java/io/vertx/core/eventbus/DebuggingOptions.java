@@ -11,16 +11,16 @@
 
 package io.vertx.core.eventbus;
 
-import com.sun.xml.internal.messaging.saaj.soap.MessageImpl;
 import io.vertx.codegen.annotations.DataObject;
+import io.vertx.core.eventbus.impl.MessageImpl;
 
 @DataObject
 public class DebuggingOptions {
 
   private String debuggingContextLabel;
-  private MessageImpl contextMessage;
+  private Message contextMessage;
 
-  public DebuggingOptions(String debuggingContextLabel, MessageImpl contextMessage) {
+  public DebuggingOptions(String debuggingContextLabel, Message contextMessage) {
     this.debuggingContextLabel = debuggingContextLabel;
     this.contextMessage = contextMessage;
   }
@@ -42,7 +42,7 @@ public class DebuggingOptions {
     this.debuggingContextLabel = debuggingContextLabel;
   }
 
-  public MessageImpl getContextMessage() {
+  public Message getContextMessage() {
     return contextMessage;
   }
 
