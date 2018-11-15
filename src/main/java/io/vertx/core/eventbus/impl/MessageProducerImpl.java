@@ -37,13 +37,15 @@ public class MessageProducerImpl<T> implements MessageProducer<T> {
   private int maxSize = DEFAULT_WRITE_QUEUE_MAX_SIZE;
   private int credits = DEFAULT_WRITE_QUEUE_MAX_SIZE;
   private Handler<Void> drainHandler;
+  private DebuggingOptions debuggingOptions;
 
-  public MessageProducerImpl(Vertx vertx, String address, boolean send, DeliveryOptions options) {
+  public MessageProducerImpl(Vertx vertx, String address, boolean send, DeliveryOptions options, DebuggingOptions debuggingOptions) {
     this.vertx = vertx;
     this.bus = vertx.eventBus();
     this.address = address;
     this.send = send;
     this.options = options;
+    this.debuggingOptions = debuggingOptions;
     if (send) {
       String creditAddress = UUID.randomUUID().toString() + "-credit";
       creditConsumer = bus.consumer(creditAddress, msg -> {
@@ -150,9 +152,9 @@ public class MessageProducerImpl<T> implements MessageProducer<T> {
     if (credits > 0) {
       credits--;
       if (replyHandler == null) {
-        bus.send(address, data, options);
+        bus.send(address, data, options, debuggingOptions);
       } else {
-        bus.send(address, data, options, replyHandler);
+        bus.send(address, data, options, debuggingOptions, replyHandler);
       }
     } else {
       pending.add(data);

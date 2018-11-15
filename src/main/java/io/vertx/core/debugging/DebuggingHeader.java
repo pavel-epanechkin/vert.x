@@ -24,6 +24,8 @@ public class DebuggingHeader {
     this.debuggingLabel = debuggingLabel;
   }
 
+  public DebuggingHeader() {}
+
   public static DebuggingHeader fromJsonString(String jsonString) {
     return new JsonObject(jsonString).mapTo(DebuggingHeader.class);
   }

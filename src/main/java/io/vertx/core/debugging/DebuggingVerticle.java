@@ -45,11 +45,12 @@ public class DebuggingVerticle extends AbstractVerticle {
   private void setupInterceptors() {
     eventBus.addInboundInterceptor(context -> {
       handleInboundMessage(context.message());
-      context.send();
+      context.next();
+
     });
     eventBus.addOutboundInterceptor(context -> {
       handleOutboundMessage(context.message());
-      context.send();
+      context.next();
     });
   }
 
@@ -61,7 +62,7 @@ public class DebuggingVerticle extends AbstractVerticle {
 
   private void handleInboundMessage(Message message) {
     synchronized (receivedMessages) {
-      sentMessages.add(message);
+      receivedMessages.add(message);
     }
   }
 

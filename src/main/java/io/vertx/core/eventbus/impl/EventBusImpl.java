@@ -146,27 +146,53 @@ public class EventBusImpl implements EventBus, MetricsProvider {
   @Override
   public <T> MessageProducer<T> sender(String address) {
     Objects.requireNonNull(address, "address");
-    return new MessageProducerImpl<>(vertx, address, true, new DeliveryOptions());
+    return new MessageProducerImpl<>(vertx, address, true, new DeliveryOptions(), new DebuggingOptions());
+  }
+
+  @Override
+  public <T> MessageProducer<T> sender(String address, DebuggingOptions debuggingOptions) {
+    Objects.requireNonNull(address, "address");
+    return new MessageProducerImpl<>(vertx, address, true, new DeliveryOptions(), debuggingOptions);
   }
 
   @Override
   public <T> MessageProducer<T> sender(String address, DeliveryOptions options) {
     Objects.requireNonNull(address, "address");
     Objects.requireNonNull(options, "options");
-    return new MessageProducerImpl<>(vertx, address, true, options);
+    return new MessageProducerImpl<>(vertx, address, true, options, new DebuggingOptions());
+  }
+
+  @Override
+  public <T> MessageProducer<T> sender(String address, DeliveryOptions options, DebuggingOptions debuggingOptions) {
+    Objects.requireNonNull(address, "address");
+    Objects.requireNonNull(options, "options");
+    return new MessageProducerImpl<>(vertx, address, true, options, debuggingOptions);
   }
 
   @Override
   public <T> MessageProducer<T> publisher(String address) {
     Objects.requireNonNull(address, "address");
-    return new MessageProducerImpl<>(vertx, address, false, new DeliveryOptions());
+    return new MessageProducerImpl<>(vertx, address, false, new DeliveryOptions(), new DebuggingOptions());
+  }
+
+  @Override
+  public <T> MessageProducer<T> publisher(String address, DebuggingOptions debuggingOptions) {
+    Objects.requireNonNull(address, "address");
+    return new MessageProducerImpl<>(vertx, address, false, new DeliveryOptions(), debuggingOptions);
   }
 
   @Override
   public <T> MessageProducer<T> publisher(String address, DeliveryOptions options) {
     Objects.requireNonNull(address, "address");
     Objects.requireNonNull(options, "options");
-    return new MessageProducerImpl<>(vertx, address, false, options);
+    return new MessageProducerImpl<>(vertx, address, false, options, new DebuggingOptions());
+  }
+
+  @Override
+  public <T> MessageProducer<T> publisher(String address, DeliveryOptions options, DebuggingOptions debuggingOptions) {
+    Objects.requireNonNull(address, "address");
+    Objects.requireNonNull(options, "options");
+    return new MessageProducerImpl<>(vertx, address, false, options, debuggingOptions);
   }
 
   @Override
@@ -269,6 +295,7 @@ public class EventBusImpl implements EventBus, MetricsProvider {
   private String prepareDebuggingHeader(DebuggingOptions debuggingOptions) {
     ArrayList<String> prevMessageIds = new ArrayList<>();
     String debuggingLabel = debuggingOptions.getDebuggingContextLabel();
+    Date occurrenceTime = new Date(System.currentTimeMillis());
 
     Message contextMessage = debuggingOptions.getContextMessage();
     if (contextMessage != null) {
@@ -283,6 +310,7 @@ public class EventBusImpl implements EventBus, MetricsProvider {
     }
 
     DebuggingHeader debuggingHeader = new DebuggingHeader(prevMessageIds, debuggingLabel);
+    debuggingHeader.setMessageOccurrenceTime(occurrenceTime);
 
     return debuggingHeader.toJsonString();
   }

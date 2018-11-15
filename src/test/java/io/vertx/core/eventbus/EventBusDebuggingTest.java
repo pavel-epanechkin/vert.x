@@ -24,14 +24,12 @@ public class EventBusDebuggingTest extends VertxDebuggingTestBase {
 
     MessageProducer<String> prod = eb.sender("some-address");
 
-    MessageConsumer<String> consumer = eb.consumer("some-address");
-    consumer.handler(msg -> {
+    eb.consumer("some-address", msg -> {
       eb.send("some-address1", "Test1", new DebuggingOptions("Usecase1-Action2", msg));
     });
 
-    MessageConsumer<String> consumer1 = eb.consumer("some-address1");
-    consumer.handler(msg -> {
-
+    eb.consumer("some-address1", msg -> {
+//      eb.send("some-address1", "Test1", new DebuggingOptions("Usecase1-Action2", msg));
     });
 
     eb.send("some-address", "Test", new DebuggingOptions("Usecase1-Action1", null));
