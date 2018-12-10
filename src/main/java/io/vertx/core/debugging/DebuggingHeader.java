@@ -1,9 +1,8 @@
 package io.vertx.core.debugging;
 
+import io.netty.util.internal.ThreadLocalRandom;
 import io.vertx.core.json.JsonObject;
 
-import java.security.Timestamp;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Random;
@@ -11,16 +10,17 @@ import java.util.Random;
 public class DebuggingHeader {
 
   private String messageId;
-  private ArrayList<String> prevMessageIds;
+  private String prevMessageId;
   private String debuggingLabel;
-  private Date messageOccurrenceTime;
+
+  public static String DEBUGGING_HEADER_NAME = "VERTX-DEBUG";
 
   private final String CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghigklmnopqrstuvwxyz1234567890";
   private final int ID_LENGTH = 16;
 
-  public DebuggingHeader(ArrayList<String> prevMessageIds, String debuggingLabel) {
+  public DebuggingHeader(String prevMessageId, String debuggingLabel) {
     this.messageId = generateMessageId();
-    this.prevMessageIds = prevMessageIds;
+    this.prevMessageId = prevMessageId;
     this.debuggingLabel = debuggingLabel;
   }
 
@@ -36,7 +36,7 @@ public class DebuggingHeader {
 
   private String generateMessageId() {
     StringBuilder code = new StringBuilder();
-    Random rand = new Random();
+    ThreadLocalRandom rand = ThreadLocalRandom.current();
     while (code.length() < ID_LENGTH) {
       int index = (int) (rand.nextFloat() * CHARS.length());
       code.append(CHARS.charAt(index));
@@ -49,20 +49,12 @@ public class DebuggingHeader {
     return messageId;
   }
 
-
-  public ArrayList<String> getPrevMessageIds() {
-    return prevMessageIds;
+  public String getPrevMessageId() {
+    return prevMessageId;
   }
 
   public String getDebuggingLabel() {
     return debuggingLabel;
   }
 
-  public Date getMessageOccurrenceTime() {
-    return messageOccurrenceTime;
-  }
-
-  public void setMessageOccurrenceTime(Date messageOccurrenceTime) {
-    this.messageOccurrenceTime = messageOccurrenceTime;
-  }
 }

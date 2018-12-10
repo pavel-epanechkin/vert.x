@@ -47,6 +47,18 @@ public interface MessageProducer<T> extends WriteStream<T> {
    */
   <R> MessageProducer<T> send(T message, Handler<AsyncResult<Message<R>>> replyHandler);
 
+  //TODO: add javadoc
+  MessageProducer<T> send(T message, DebuggingOptions debuggingOptions);
+
+  //TODO: add javadoc
+  <R> MessageProducer<T> send(T message, DebuggingOptions debuggingOptions, Handler<AsyncResult<Message<R>>> replyHandler);
+
+  //TODO: add javadoc
+  MessageProducer withDebuggingLabel(String label);
+
+  //TODO: add javadoc
+  MessageProducer withContextMessage(Message contextMessage);
+
   @Override
   MessageProducer<T> exceptionHandler(Handler<Throwable> handler);
 

@@ -22,7 +22,6 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.core.spi.metrics.EventBusMetrics;
 import io.vertx.core.streams.ReadStream;
-import sun.awt.windows.ThemeReader;
 
 import java.util.ArrayDeque;
 import java.util.Objects;

@@ -37,14 +37,13 @@ public class MessageImpl<U, V> implements Message<V> {
   protected U sentBody;
   protected V receivedBody;
   protected boolean send;
-  protected DebuggingOptions debuggingOptions;
 
   public MessageImpl() {
   }
 
   public MessageImpl(String address, String replyAddress, MultiMap headers, U sentBody,
                      MessageCodec<U, V> messageCodec,
-                     boolean send, EventBusImpl bus, DebuggingOptions debuggingOptions) {
+                     boolean send, EventBusImpl bus) {
     this.messageCodec = messageCodec;
     this.address = address;
     this.replyAddress = replyAddress;
@@ -108,7 +107,7 @@ public class MessageImpl<U, V> implements Message<V> {
   public void fail(int failureCode, String message) {
     if (replyAddress != null) {
       sendReply(bus.createMessage(true, replyAddress, null,
-        new ReplyException(ReplyFailure.RECIPIENT_FAILURE, failureCode, message), null, debuggingOptions), null, null);
+        new ReplyException(ReplyFailure.RECIPIENT_FAILURE, failureCode, message), null, new DebuggingOptions(this)), null, null);
     }
   }
 
@@ -130,19 +129,8 @@ public class MessageImpl<U, V> implements Message<V> {
   @Override
   public <R> void reply(Object message, DeliveryOptions options, Handler<AsyncResult<Message<R>>> replyHandler) {
     if (replyAddress != null) {
-      MultiMap headers = prepareReplyHeaders(options);
-      sendReply(bus.createMessage(true, replyAddress, headers, message, options.getCodecName(), debuggingOptions), options, replyHandler);
+      sendReply(bus.createMessage(true, replyAddress, headers, message, options.getCodecName(), new DebuggingOptions("reply", this)), options, replyHandler);
     }
-  }
-
-  private MultiMap prepareReplyHeaders(DeliveryOptions deliveryOptions) {
-    MultiMap headers = deliveryOptions.getHeaders();
-
-    if (bus.vertx.isDebugging()) {
-      headers.add(bus.DEBUGGING_HEADER_NAME, "REPLY");
-    }
-
-    return headers;
   }
 
   @Override

@@ -30,7 +30,6 @@ import io.vertx.core.spi.metrics.EventBusMetrics;
 import io.vertx.core.spi.metrics.MetricsProvider;
 import io.vertx.core.spi.metrics.VertxMetrics;
 
-import java.security.Timestamp;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -45,8 +44,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class EventBusImpl implements EventBus, MetricsProvider {
 
   private static final Logger log = LoggerFactory.getLogger(EventBusImpl.class);
-
-  protected final String DEBUGGING_HEADER_NAME = "VERTX-DEBUG";
 
   private final List<Handler<DeliveryContext>> sendInterceptors = new CopyOnWriteArrayList<>();
   private final List<Handler<DeliveryContext>> receiveInterceptors = new CopyOnWriteArrayList<>();
@@ -64,7 +61,7 @@ public class EventBusImpl implements EventBus, MetricsProvider {
     this.vertx = vertx;
     this.metrics = metrics != null ? metrics.createEventBusMetrics() : null;
     if (vertx.isDebugging()) {
-      debuggingVerticle = new DebuggingVerticle(this);
+      debuggingVerticle = new DebuggingVerticle(this, vertx.getDebuggingOutputPath());
       vertx.deployVerticle(debuggingVerticle);
     }
   }
@@ -139,60 +136,34 @@ public class EventBusImpl implements EventBus, MetricsProvider {
 
   @Override
   public <T> EventBus send(String address, Object message, DeliveryOptions options, DebuggingOptions debuggingOptions, Handler<AsyncResult<Message<T>>> replyHandler) {
-    sendOrPubInternal(createMessage(true, address, options.getHeaders(), message, options.getCodecName(), debuggingOptions), options, debuggingOptions, replyHandler);
+    sendOrPubInternal(createMessage(true, address, options.getHeaders(), message, options.getCodecName(), debuggingOptions), options, replyHandler);
     return this;
   }
 
   @Override
   public <T> MessageProducer<T> sender(String address) {
     Objects.requireNonNull(address, "address");
-    return new MessageProducerImpl<>(vertx, address, true, new DeliveryOptions(), new DebuggingOptions());
-  }
-
-  @Override
-  public <T> MessageProducer<T> sender(String address, DebuggingOptions debuggingOptions) {
-    Objects.requireNonNull(address, "address");
-    return new MessageProducerImpl<>(vertx, address, true, new DeliveryOptions(), debuggingOptions);
+    return new MessageProducerImpl<>(vertx, address, true, new DeliveryOptions());
   }
 
   @Override
   public <T> MessageProducer<T> sender(String address, DeliveryOptions options) {
     Objects.requireNonNull(address, "address");
     Objects.requireNonNull(options, "options");
-    return new MessageProducerImpl<>(vertx, address, true, options, new DebuggingOptions());
-  }
-
-  @Override
-  public <T> MessageProducer<T> sender(String address, DeliveryOptions options, DebuggingOptions debuggingOptions) {
-    Objects.requireNonNull(address, "address");
-    Objects.requireNonNull(options, "options");
-    return new MessageProducerImpl<>(vertx, address, true, options, debuggingOptions);
+    return new MessageProducerImpl<>(vertx, address, true, options);
   }
 
   @Override
   public <T> MessageProducer<T> publisher(String address) {
     Objects.requireNonNull(address, "address");
-    return new MessageProducerImpl<>(vertx, address, false, new DeliveryOptions(), new DebuggingOptions());
-  }
-
-  @Override
-  public <T> MessageProducer<T> publisher(String address, DebuggingOptions debuggingOptions) {
-    Objects.requireNonNull(address, "address");
-    return new MessageProducerImpl<>(vertx, address, false, new DeliveryOptions(), debuggingOptions);
+    return new MessageProducerImpl<>(vertx, address, false, new DeliveryOptions());
   }
 
   @Override
   public <T> MessageProducer<T> publisher(String address, DeliveryOptions options) {
     Objects.requireNonNull(address, "address");
     Objects.requireNonNull(options, "options");
-    return new MessageProducerImpl<>(vertx, address, false, options, new DebuggingOptions());
-  }
-
-  @Override
-  public <T> MessageProducer<T> publisher(String address, DeliveryOptions options, DebuggingOptions debuggingOptions) {
-    Objects.requireNonNull(address, "address");
-    Objects.requireNonNull(options, "options");
-    return new MessageProducerImpl<>(vertx, address, false, options, debuggingOptions);
+    return new MessageProducerImpl<>(vertx, address, false, options);
   }
 
   @Override
@@ -212,7 +183,7 @@ public class EventBusImpl implements EventBus, MetricsProvider {
 
   @Override
   public EventBus publish(String address, Object message, DeliveryOptions options, DebuggingOptions debuggingOptions) {
-    sendOrPubInternal(createMessage(false, address, options.getHeaders(), message, options.getCodecName(), debuggingOptions), options, debuggingOptions, null);
+    sendOrPubInternal(createMessage(false, address, options.getHeaders(), message, options.getCodecName(), debuggingOptions), options, null);
     return this;
   }
 
@@ -293,24 +264,20 @@ public class EventBusImpl implements EventBus, MetricsProvider {
   }
 
   private String prepareDebuggingHeader(DebuggingOptions debuggingOptions) {
-    ArrayList<String> prevMessageIds = new ArrayList<>();
     String debuggingLabel = debuggingOptions.getDebuggingContextLabel();
-    Date occurrenceTime = new Date(System.currentTimeMillis());
+    String prevMessageId = null;
 
     Message contextMessage = debuggingOptions.getContextMessage();
     if (contextMessage != null) {
-      Object contextMessageDebuggingHeaderObject = contextMessage.headers().get(DEBUGGING_HEADER_NAME);
+      Object contextMessageDebuggingHeaderObject = contextMessage.headers().get(DebuggingHeader.DEBUGGING_HEADER_NAME);
       if (contextMessageDebuggingHeaderObject != null) {
         DebuggingHeader contextMessageDebuggingHeader
           = DebuggingHeader.fromJsonString(contextMessageDebuggingHeaderObject.toString());
-        prevMessageIds = contextMessageDebuggingHeader.getPrevMessageIds();
-        prevMessageIds.add(contextMessageDebuggingHeader.getMessageId());
-
+        prevMessageId = contextMessageDebuggingHeader.getMessageId();
       }
     }
 
-    DebuggingHeader debuggingHeader = new DebuggingHeader(prevMessageIds, debuggingLabel);
-    debuggingHeader.setMessageOccurrenceTime(occurrenceTime);
+    DebuggingHeader debuggingHeader = new DebuggingHeader(prevMessageId, debuggingLabel);
 
     return debuggingHeader.toJsonString();
   }
@@ -326,11 +293,12 @@ public class EventBusImpl implements EventBus, MetricsProvider {
       if (headers == null)
         headers = new CaseInsensitiveHeaders();
 
-      headers.add(DEBUGGING_HEADER_NAME, debuggingHeaderValue);
+      headers.remove(DebuggingHeader.DEBUGGING_HEADER_NAME);
+      headers.add(DebuggingHeader.DEBUGGING_HEADER_NAME, debuggingHeaderValue);
     }
 
     @SuppressWarnings("unchecked")
-    MessageImpl msg = new MessageImpl(address, null, headers, body, codec, send, this, debuggingOptions);
+    MessageImpl msg = new MessageImpl(address, null, headers, body, codec, send, this);
     return msg;
   }
 
@@ -533,8 +501,7 @@ public class EventBusImpl implements EventBus, MetricsProvider {
     }
   }
 
-  private <T> void sendOrPubInternal(MessageImpl message, DeliveryOptions options, DebuggingOptions debuggingOptions,
-                                     Handler<AsyncResult<Message<T>>> replyHandler) {
+  private <T> void sendOrPubInternal(MessageImpl message, DeliveryOptions options, Handler<AsyncResult<Message<T>>> replyHandler) {
     checkStarted();
     HandlerRegistration<T> replyHandlerRegistration = createReplyHandlerRegistration(message, options, replyHandler);
     OutboundDeliveryContext<T> sendContext = new OutboundDeliveryContext<>(message, options, replyHandlerRegistration);

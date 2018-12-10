@@ -20,6 +20,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.metrics.MetricsOptions;
 import io.vertx.core.spi.cluster.ClusterManager;
 
+import java.io.File;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -34,6 +35,8 @@ import static io.vertx.core.file.FileSystemOptions.DEFAULT_FILE_CACHING_ENABLED;
 public class VertxOptions {
 
   public static final boolean DEFAULT_DEBUGGING_ENABLED = false;
+
+  public static final String DEFAULT_DEBUGGING_OUTPUT_PATH = System.getProperty("java.io.tmpdir");
 
   /**
    * The default number of event loop threads to be used  = 2 * number of cores on the machine
@@ -169,6 +172,8 @@ public class VertxOptions {
   private TimeUnit blockedThreadCheckIntervalUnit = DEFAULT_BLOCKED_THREAD_CHECK_INTERVAL_UNIT;
   private boolean debugging = DEFAULT_DEBUGGING_ENABLED;
 
+  private String debuggingOutputPath = DEFAULT_DEBUGGING_OUTPUT_PATH;
+
   /**
    * Default constructor
    */
@@ -201,6 +206,7 @@ public class VertxOptions {
     this.warningExceptionTimeUnit = other.warningExceptionTimeUnit;
     this.blockedThreadCheckIntervalUnit = other.blockedThreadCheckIntervalUnit;
     this.debugging = other.debugging;
+    this.debuggingOutputPath = other.debuggingOutputPath;
   }
 
   /**
@@ -848,6 +854,14 @@ public class VertxOptions {
     this.debugging = debugging;
   }
 
+  public String getDebuggingOutputPath() {
+    return debuggingOutputPath;
+  }
+
+  public void setDebuggingOutputPath(String debuggingOutputPath) {
+    this.debuggingOutputPath = debuggingOutputPath;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
@@ -934,6 +948,7 @@ public class VertxOptions {
         ", warningExceptionTimeUnit=" + warningExceptionTimeUnit +
         ", warningExceptionTime=" + warningExceptionTime +
         ", debugging=" + debugging +
+        ", debuggingOutputPath=" + debuggingOutputPath +
         '}';
   }
 }

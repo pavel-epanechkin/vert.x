@@ -94,6 +94,8 @@ public interface VertxInternal extends Vertx {
 
   boolean isDebugging();
 
+  String getDebuggingOutputPath();
+
   void failDuringFailover(boolean fail);
 
   String getNodeID();

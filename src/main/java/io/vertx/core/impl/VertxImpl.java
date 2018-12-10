@@ -130,6 +130,7 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
   private final CloseHooks closeHooks;
   private final Transport transport;
   private boolean debugging;
+  private String debuggingOutputPath;
 
   private VertxImpl(VertxOptions options) {
     // Sanity check
@@ -175,6 +176,7 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
     this.addressResolver = new AddressResolver(this, options.getAddressResolverOptions());
     this.deploymentManager = new DeploymentManager(this);
     this.debugging = options.isDebugging();
+    this.debuggingOutputPath = options.getDebuggingOutputPath();
     if (options.isClustered()) {
       this.clusterManager = getClusterManager(options);
       this.eventBus = new ClusteredEventBus(this, options, clusterManager);
@@ -865,6 +867,10 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
 
   public boolean isDebugging() {
     return debugging;
+  }
+
+  public String getDebuggingOutputPath() {
+    return debuggingOutputPath;
   }
 
   private class InternalTimerHandler implements Handler<Void>, Closeable {

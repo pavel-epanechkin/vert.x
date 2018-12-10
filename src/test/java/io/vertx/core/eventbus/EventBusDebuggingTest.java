@@ -14,33 +14,47 @@ package io.vertx.core.eventbus;
 import io.vertx.test.core.VertxDebuggingTestBase;
 import org.junit.Test;
 
+import java.util.concurrent.TimeUnit;
+
 
 public class EventBusDebuggingTest extends VertxDebuggingTestBase {
-
-  protected EventBus eb;
 
   @Test
   public void testFlowControl() {
 
-    MessageProducer<String> prod = eb.sender("some-address");
+    EventBus eb = vertx.eventBus();
+
+    MessageProducer producer = eb.publisher("some-address").withDebuggingLabel("Sequence1-Action0");
 
     eb.consumer("some-address", msg -> {
-      eb.send("some-address1", "Test1", new DebuggingOptions("Usecase1-Action2", msg));
+      for (int i = 0; i < 100; i++) {
+        eb.send("some-address1", "Send test1", new DebuggingOptions("Sequence1-Action1", msg));
+        eb.send("some-address2", "Send test2", new DebuggingOptions("Sequence11-Action1", msg), reply -> {
+          String message = reply.result().body().toString();
+        });
+      }
     });
 
     eb.consumer("some-address1", msg -> {
-//      eb.send("some-address1", "Test1", new DebuggingOptions("Usecase1-Action2", msg));
+      eb.publish("some-address3", "Publish test", new DebuggingOptions("Sequence1-Action2", msg));
     });
 
-    eb.send("some-address", "Test", new DebuggingOptions("Usecase1-Action1", null));
+    eb.consumer("some-address2", msg -> {
+      msg.reply("Reply test1");
+    });
 
-    await();
+    eb.consumer("some-address3", msg -> {
+      msg.reply("Reply test2");
+    });
+
+    producer.send("Test publisher send");
+
+    await(10, TimeUnit.SECONDS);
   }
 
 
   @Override
   public void setUp() throws Exception {
     super.setUp();
-    eb = vertx.eventBus();
   }
 }
