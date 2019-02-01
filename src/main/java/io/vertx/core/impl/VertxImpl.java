@@ -21,11 +21,13 @@ import io.vertx.core.Future;
 import io.vertx.core.datagram.DatagramSocket;
 import io.vertx.core.datagram.DatagramSocketOptions;
 import io.vertx.core.datagram.impl.DatagramSocketImpl;
+import io.vertx.core.debugging.EventBusWrapper;
 import io.vertx.core.dns.AddressResolverOptions;
 import io.vertx.core.dns.DnsClient;
 import io.vertx.core.dns.DnsClientOptions;
 import io.vertx.core.dns.impl.DnsClientImpl;
 import io.vertx.core.eventbus.EventBus;
+import io.vertx.core.eventbus.Message;
 import io.vertx.core.eventbus.impl.EventBusImpl;
 import io.vertx.core.eventbus.impl.clustered.ClusteredEventBus;
 import io.vertx.core.file.FileSystem;
@@ -318,6 +320,13 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
   }
 
   public EventBus eventBus() {
+    return eventBus;
+  }
+
+  public EventBus eventBus(Message contextMessage) {
+    if (debugging) {
+      return new EventBusWrapper(eventBus, contextMessage);
+    }
     return eventBus;
   }
 

@@ -27,7 +27,7 @@ public class EventBusDebuggingTest extends VertxDebuggingTestBase {
     MessageProducer producer = eb.publisher("some-address").withDebuggingLabel("Sequence1-Action0");
 
     eb.consumer("some-address", msg -> {
-      for (int i = 0; i < 100; i++) {
+      for (int i = 0; i < 10000; i++) {
         eb.send("some-address1", "Send test1", new DebuggingOptions("Sequence1-Action1", msg));
         eb.send("some-address2", "Send test2", new DebuggingOptions("Sequence11-Action1", msg), reply -> {
           String message = reply.result().body().toString();
@@ -47,9 +47,12 @@ public class EventBusDebuggingTest extends VertxDebuggingTestBase {
       msg.reply("Reply test2");
     });
 
-    producer.send("Test publisher send");
+    for (int i = 0; i < 20; i++) {
+      producer.send("Test publisher send");
+    }
 
-    await(10, TimeUnit.SECONDS);
+
+    await(120, TimeUnit.SECONDS);
   }
 
 

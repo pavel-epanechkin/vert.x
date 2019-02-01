@@ -131,6 +131,13 @@
       <artifactId>jackson-databind</artifactId>
     </dependency>
 
+    <!-- Embedded DB for debugging -->
+    <dependency>
+      <groupId>org.dizitart</groupId>
+      <artifactId>nitrite</artifactId>
+      <version>3.1.0</version>
+    </dependency>
+
     <!-- Loggers -->
     <dependency>
       <groupId>log4j</groupId>

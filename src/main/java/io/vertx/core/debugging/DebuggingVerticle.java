@@ -1,20 +1,17 @@
 package io.vertx.core.debugging;
 
 import io.vertx.core.*;
+import io.vertx.core.Future;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
-import io.vertx.core.eventbus.impl.EventBusImpl;
 import io.vertx.core.http.CaseInsensitiveHeaders;
-import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import org.dizitart.no2.Nitrite;
+import org.dizitart.no2.objects.ObjectRepository;
 
-import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class DebuggingVerticle extends AbstractVerticle {
 
@@ -22,16 +19,19 @@ public class DebuggingVerticle extends AbstractVerticle {
 
   private EventBus eventBus;
 
-  private Queue<CaughtMessageInfo> caughtMessageInfos = new ConcurrentLinkedQueue();
+  private Nitrite storage;
 
-  private Thread outputThread;
-  private int OUTPUT_THREAD_SLEEP_DURATION = 1000;
+  private Integer counter = 0;
 
-  private boolean debugging;
+  protected ObjectRepository<MessageInfo> objectRepository;
 
   private String debuggingOutputPath;
 
-  private final String MESSAGES_OUTPUT_FILENAME = "messages_info";
+  private Thread outputThread;
+
+  private BlockingQueue<CaughtMessageInfo> messagesBuffer = new LinkedBlockingQueue<>();
+
+  private boolean debugging;
 
   public DebuggingVerticle(EventBus eventBus, String debuggingOutputPath) {
     this.eventBus = eventBus;
@@ -49,11 +49,11 @@ public class DebuggingVerticle extends AbstractVerticle {
     try {
       debugging = false;
       outputThread.join();
-      stopFuture.complete();
+    } catch (InterruptedException e) {
+      e.printStackTrace();
     }
-    catch (InterruptedException err) {
-      err.printStackTrace();
-    }
+    storage.close();
+    stopFuture.complete();
   }
 
   private void setupInterceptors() {
@@ -69,73 +69,54 @@ public class DebuggingVerticle extends AbstractVerticle {
 
   private void handleOutboundMessage(Message message) {
     CaughtMessageInfo caughtMessageInfo = new CaughtMessageInfo(message, MessageType.sent);
-    caughtMessageInfos.add(caughtMessageInfo);
+    try {
+      messagesBuffer.put(caughtMessageInfo);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
   }
 
   private void handleInboundMessage(Message message) {
     CaughtMessageInfo caughtMessageInfo = new CaughtMessageInfo(message, MessageType.received);
-    caughtMessageInfos.add(caughtMessageInfo);
+    try {
+      messagesBuffer.put(caughtMessageInfo);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
   }
 
   private void startSavingMessages() {
     outputThread = new Thread(() -> {
-      String messagesInfoFilePath = debuggingOutputPath + File.separator + MESSAGES_OUTPUT_FILENAME;
-      log.info("Start saving debugging info into file:" + messagesInfoFilePath);
+      String messagesInfoPath = debuggingOutputPath + "messages_info.db";
+      log.info("Start saving debugging info into file: " + messagesInfoPath);
 
-      FileWriter messagesInfoFileWriter = null;
-      BufferedWriter messagesInfoBuffWriter = null;
+      storage = Nitrite.builder()
+        .filePath(messagesInfoPath)
+        .openOrCreate();
+      objectRepository = storage.getRepository("messagesHistory", MessageInfo.class);
 
       try {
-        messagesInfoFileWriter = new FileWriter(messagesInfoFilePath);
-        messagesInfoBuffWriter = new BufferedWriter(messagesInfoFileWriter);
+        CaughtMessageInfo messageInfo = null;
 
-        while (true) {
-          saveAvailableMessagesInfo(caughtMessageInfos, messagesInfoBuffWriter);
-
-          if (!debugging) {
-            saveAvailableMessagesInfo(caughtMessageInfos, messagesInfoBuffWriter);
-            break;
-          }
-
-          try {
-            Thread.sleep(OUTPUT_THREAD_SLEEP_DURATION);
-          } catch (InterruptedException e) {
-            e.printStackTrace();
-          }
+        while (debugging) {
+          if (messageInfo != null)
+            saveMessage(messageInfo);
+          messageInfo = messagesBuffer.poll(1, TimeUnit.SECONDS);
         }
+      } catch (InterruptedException e) {
+        e.printStackTrace();
       }
-      catch (IOException err) {
-        err.printStackTrace();
-      }
-      finally {
-        try {
-          if (messagesInfoFileWriter != null) {
-            messagesInfoBuffWriter.flush();
-            messagesInfoBuffWriter.close();
-            messagesInfoFileWriter.close();
-          }
-        } catch (IOException e) {
-          e.printStackTrace();
-        }
-      }
+
     });
     outputThread.start();
   }
 
-  private void saveAvailableMessagesInfo(Queue<CaughtMessageInfo> queue, BufferedWriter bufferedWriter) {
-    int availableMessagesCount = queue.size();
-    for (int i = 0; i < availableMessagesCount; i++) {
-      CaughtMessageInfo caughtMessageInfo = queue.poll();
-      String messageData = prepareOutputMessageData(caughtMessageInfo);
-      try {
-        bufferedWriter.write(messageData);
-      } catch (IOException e) {
-        e.printStackTrace();
-      }
-    }
+  private void saveMessage(CaughtMessageInfo caughtMessageInfo) {
+    MessageInfo messageInfo = createMessageEntity(caughtMessageInfo);
+    objectRepository.insert(messageInfo);
   }
 
-  private String prepareOutputMessageData(CaughtMessageInfo caughtMessageInfo) {
+  private MessageInfo createMessageEntity(CaughtMessageInfo caughtMessageInfo) {
     Message message = caughtMessageInfo.getMessage();
     MultiMap tmpHeaders = new CaseInsensitiveHeaders();
     tmpHeaders.addAll(message.headers());
@@ -143,16 +124,22 @@ public class DebuggingVerticle extends AbstractVerticle {
     DebuggingHeader debuggingHeader = DebuggingHeader.fromJsonString(debuggingHeaderString);
     tmpHeaders.remove(DebuggingHeader.DEBUGGING_HEADER_NAME);
 
-    JsonObject outputData = new JsonObject();
-    outputData.put("type", caughtMessageInfo.getMessageType().name());
-    outputData.put("time", caughtMessageInfo.getMessageOccuranceTime().getTime());
-    outputData.put("id", debuggingHeader.getMessageId());
-    outputData.put("prevId", debuggingHeader.getMessageId());
-    outputData.put("label", debuggingHeader.getDebuggingLabel());
-    outputData.put("targetAddress", message.address());
-    outputData.put("replyAddress", message.replyAddress());
-    outputData.put("headers", tmpHeaders.toString());
-    outputData.put("body", message.body().toString());
-    return outputData.toString() + "\r\n";
+    MessageInfo messageInfo = new MessageInfo();
+    messageInfo.setRecordId(++counter);
+    messageInfo.setType(caughtMessageInfo.getMessageType().name());
+    messageInfo.setTimestamp(caughtMessageInfo.getMessageOccuranceTime().getTime());
+    messageInfo.setMessageId(debuggingHeader.getMessageId());
+    messageInfo.setPrevMessageId(getStringValue(debuggingHeader.getPrevMessageId()));
+    messageInfo.setLabel(getStringValue(debuggingHeader.getDebuggingLabel()));
+    messageInfo.setTargetAddress(getStringValue(message.address()));
+    messageInfo.setReplyAddress(getStringValue(message.replyAddress()));
+    messageInfo.setHeaders(getStringValue(tmpHeaders));
+    messageInfo.setBody(getStringValue(message.body()));
+
+    return messageInfo;
+  }
+
+  private String getStringValue(Object object) {
+    return object == null ? "" : object.toString();
   }
 }

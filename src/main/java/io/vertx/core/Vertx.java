@@ -18,6 +18,7 @@ import io.vertx.core.datagram.DatagramSocketOptions;
 import io.vertx.core.dns.DnsClient;
 import io.vertx.core.dns.DnsClientOptions;
 import io.vertx.core.eventbus.EventBus;
+import io.vertx.core.eventbus.Message;
 import io.vertx.core.file.FileSystem;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientOptions;
@@ -203,6 +204,14 @@ public interface Vertx extends Measured {
    */
   @CacheReturn
   EventBus eventBus();
+
+  /**
+   * Get the event bus object wrapped with context message.
+   *
+   * @return the event bus object
+   */
+  @CacheReturn
+  EventBus eventBus(Message contextMessage);
 
   /**
    * Create a DNS client to connect to a DNS server at the specified host and port, with the default query timeout (5 seconds)
