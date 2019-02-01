@@ -133,9 +133,9 @@
 
     <!-- Embedded DB for debugging -->
     <dependency>
-      <groupId>org.dizitart</groupId>
-      <artifactId>nitrite</artifactId>
-      <version>3.1.0</version>
+      <groupId>org.rocksdb</groupId>
+      <artifactId>rocksdbjni</artifactId>
+      <version>5.5.1</version>
     </dependency>
 
     <!-- Loggers -->

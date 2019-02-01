@@ -1,17 +1,22 @@
 package io.vertx.core.debugging;
 
-import io.vertx.core.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
+import io.vertx.core.MultiMap;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.http.CaseInsensitiveHeaders;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import org.dizitart.no2.Nitrite;
-import org.dizitart.no2.objects.ObjectRepository;
+import org.rocksdb.Options;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
 
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 public class DebuggingVerticle extends AbstractVerticle {
 
@@ -19,11 +24,9 @@ public class DebuggingVerticle extends AbstractVerticle {
 
   private EventBus eventBus;
 
-  private Nitrite storage;
+  private RocksDB storage;
 
   private Integer counter = 0;
-
-  protected ObjectRepository<MessageInfo> objectRepository;
 
   private String debuggingOutputPath;
 
@@ -53,6 +56,7 @@ public class DebuggingVerticle extends AbstractVerticle {
       e.printStackTrace();
     }
     storage.close();
+    System.out.println("Messages saved: " + counter);
     stopFuture.complete();
   }
 
@@ -90,21 +94,23 @@ public class DebuggingVerticle extends AbstractVerticle {
       String messagesInfoPath = debuggingOutputPath + "messages_info.db";
       log.info("Start saving debugging info into file: " + messagesInfoPath);
 
-      storage = Nitrite.builder()
-        .filePath(messagesInfoPath)
-        .openOrCreate();
-      objectRepository = storage.getRepository("messagesHistory", MessageInfo.class);
+      RocksDB.loadLibrary();
+      try (final Options options = new Options().setCreateIfMissing(true)) {
+        storage = RocksDB.open(options, debuggingOutputPath);
 
-      try {
-        CaughtMessageInfo messageInfo = null;
+        try {
+          CaughtMessageInfo messageInfo = null;
 
-        while (debugging) {
-          if (messageInfo != null)
-            saveMessage(messageInfo);
-          messageInfo = messagesBuffer.poll(1, TimeUnit.SECONDS);
+          while (debugging) {
+            if (messageInfo != null)
+              saveMessage(messageInfo);
+            messageInfo = messagesBuffer.poll(1, TimeUnit.SECONDS);
+          }
+        } catch (InterruptedException e) {
+          e.printStackTrace();
         }
-      } catch (InterruptedException e) {
-        e.printStackTrace();
+      } catch (RocksDBException err) {
+        err.printStackTrace();
       }
 
     });
@@ -113,7 +119,18 @@ public class DebuggingVerticle extends AbstractVerticle {
 
   private void saveMessage(CaughtMessageInfo caughtMessageInfo) {
     MessageInfo messageInfo = createMessageEntity(caughtMessageInfo);
-    objectRepository.insert(messageInfo);
+
+    ObjectMapper objectMapper = new ObjectMapper();
+
+    try {
+      String id = messageInfo.getMessageId();
+      String content = objectMapper.writeValueAsString(messageInfo);
+      storage.put(id.getBytes(), content.getBytes());
+    }
+    catch (JsonProcessingException | RocksDBException e) {
+      e.printStackTrace();
+    }
+
   }
 
   private MessageInfo createMessageEntity(CaughtMessageInfo caughtMessageInfo) {

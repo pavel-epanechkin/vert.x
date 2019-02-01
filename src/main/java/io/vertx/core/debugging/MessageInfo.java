@@ -1,24 +1,10 @@
 package io.vertx.core.debugging;
 
-import org.dizitart.no2.IndexType;
-import org.dizitart.no2.objects.Id;
-import org.dizitart.no2.objects.Index;
-import org.dizitart.no2.objects.Indices;
-
 import java.io.Serializable;
 
-@Indices({
-  @Index(value = "messageId", type = IndexType.NonUnique),
-  @Index(value = "label", type = IndexType.NonUnique),
-  @Index(value = "timestamp", type = IndexType.NonUnique),
-  @Index(value = "prevMessageId", type = IndexType.NonUnique),
-  @Index(value = "targetAddress", type = IndexType.NonUnique),
-  @Index(value = "replyAddress", type = IndexType.NonUnique)
-})
 
 public class MessageInfo implements Serializable {
 
-  @Id
   private Integer recordId;
 
   private String messageId;
