@@ -107,9 +107,12 @@ public class DebuggingVerticle extends AbstractVerticle {
         try {
           CaughtMessageInfo messageInfo = null;
 
-          while (debugging) {
+          while (true) {
             if (messageInfo != null)
               saveMessage(messageInfo);
+            else if (!debugging)
+              break;
+
             messageInfo = messagesBuffer.poll(1, TimeUnit.SECONDS);
           }
         } catch (InterruptedException e) {
