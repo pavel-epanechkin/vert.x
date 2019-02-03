@@ -52,7 +52,7 @@ public class EventBusDebuggingTest extends VertxDebuggingTestBase {
     }
 
 
-    await(120, TimeUnit.SECONDS);
+    await(25, TimeUnit.SECONDS);
   }
 
 

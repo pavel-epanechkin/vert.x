@@ -8,12 +8,17 @@ import io.vertx.core.MultiMap;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.http.CaseInsensitiveHeaders;
+import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
+import java.io.File;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.util.Date;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -91,12 +96,13 @@ public class DebuggingVerticle extends AbstractVerticle {
 
   private void startSavingMessages() {
     outputThread = new Thread(() -> {
-      String messagesInfoPath = debuggingOutputPath + "messages_info.db";
+      String debuggingLog = "vertx-debug-" + LocalDateTime.now().toString().replaceAll("[:.]", "_");
+      String messagesInfoPath = debuggingOutputPath + File.separator + debuggingLog;
       log.info("Start saving debugging info into file: " + messagesInfoPath);
 
       RocksDB.loadLibrary();
       try (final Options options = new Options().setCreateIfMissing(true)) {
-        storage = RocksDB.open(options, debuggingOutputPath);
+        storage = RocksDB.open(options, messagesInfoPath);
 
         try {
           CaughtMessageInfo messageInfo = null;
@@ -118,22 +124,20 @@ public class DebuggingVerticle extends AbstractVerticle {
   }
 
   private void saveMessage(CaughtMessageInfo caughtMessageInfo) {
-    MessageInfo messageInfo = createMessageEntity(caughtMessageInfo);
-
-    ObjectMapper objectMapper = new ObjectMapper();
+    JsonObject messageInfo = createMessageEntity(caughtMessageInfo);
 
     try {
-      String id = messageInfo.getMessageId();
-      String content = objectMapper.writeValueAsString(messageInfo);
+      String id = messageInfo.getInteger("recordId").toString();
+      String content = messageInfo.toString();
       storage.put(id.getBytes(), content.getBytes());
     }
-    catch (JsonProcessingException | RocksDBException e) {
+    catch (RocksDBException e) {
       e.printStackTrace();
     }
 
   }
 
-  private MessageInfo createMessageEntity(CaughtMessageInfo caughtMessageInfo) {
+  private JsonObject createMessageEntity(CaughtMessageInfo caughtMessageInfo) {
     Message message = caughtMessageInfo.getMessage();
     MultiMap tmpHeaders = new CaseInsensitiveHeaders();
     tmpHeaders.addAll(message.headers());
@@ -141,19 +145,19 @@ public class DebuggingVerticle extends AbstractVerticle {
     DebuggingHeader debuggingHeader = DebuggingHeader.fromJsonString(debuggingHeaderString);
     tmpHeaders.remove(DebuggingHeader.DEBUGGING_HEADER_NAME);
 
-    MessageInfo messageInfo = new MessageInfo();
-    messageInfo.setRecordId(++counter);
-    messageInfo.setType(caughtMessageInfo.getMessageType().name());
-    messageInfo.setTimestamp(caughtMessageInfo.getMessageOccuranceTime().getTime());
-    messageInfo.setMessageId(debuggingHeader.getMessageId());
-    messageInfo.setPrevMessageId(getStringValue(debuggingHeader.getPrevMessageId()));
-    messageInfo.setLabel(getStringValue(debuggingHeader.getDebuggingLabel()));
-    messageInfo.setTargetAddress(getStringValue(message.address()));
-    messageInfo.setReplyAddress(getStringValue(message.replyAddress()));
-    messageInfo.setHeaders(getStringValue(tmpHeaders));
-    messageInfo.setBody(getStringValue(message.body()));
+    JsonObject jsonObject = new JsonObject();
+    jsonObject.put("recordId", ++counter);
+    jsonObject.put("type", caughtMessageInfo.getMessageType().name());
+    jsonObject.put("timestamp", caughtMessageInfo.getMessageOccuranceTime().getTime());
+    jsonObject.put("messageId", debuggingHeader.getMessageId());
+    jsonObject.put("prevMessageId", getStringValue(debuggingHeader.getPrevMessageId()));
+    jsonObject.put("label", getStringValue(debuggingHeader.getDebuggingLabel()));
+    jsonObject.put("targetAddress", getStringValue(message.address()));
+    jsonObject.put("replyAddress", getStringValue(message.replyAddress()));
+    jsonObject.put("headers", getStringValue(tmpHeaders));
+    jsonObject.put("body", getStringValue(message.body()));
 
-    return messageInfo;
+    return jsonObject;
   }
 
   private String getStringValue(Object object) {
