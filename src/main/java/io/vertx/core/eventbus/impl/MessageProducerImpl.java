@@ -69,13 +69,13 @@ public class MessageProducerImpl<T> implements MessageProducer<T> {
 
   @Override
   public MessageProducer<T> send(T message) {
-    doSend(message, new DebuggingOptions(), null);
+    doSend(message, new DebuggingOptions(debuggingContextLabel, contextMessage), null);
     return this;
   }
 
   @Override
   public <R> MessageProducer<T> send(T message, Handler<AsyncResult<Message<R>>> replyHandler) {
-    doSend(message, new DebuggingOptions(), replyHandler);
+    doSend(message, new DebuggingOptions(debuggingContextLabel, contextMessage), replyHandler);
     return this;
   }
 

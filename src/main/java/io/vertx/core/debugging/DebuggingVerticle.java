@@ -1,7 +1,5 @@
 package io.vertx.core.debugging;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.MultiMap;
@@ -11,14 +9,13 @@ import io.vertx.core.http.CaseInsensitiveHeaders;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import org.rocksdb.Options;
-import org.rocksdb.RocksDB;
-import org.rocksdb.RocksDBException;
+import org.rocksdb.*;
 
 import java.io.File;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.util.Date;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -29,17 +26,38 @@ public class DebuggingVerticle extends AbstractVerticle {
 
   private EventBus eventBus;
 
+  private String debuggingOutputPath;
+
   private RocksDB storage;
 
-  private Integer counter = 0;
+  private DBOptions storageOptions;
 
-  private String debuggingOutputPath;
+  private ColumnFamilyHandle sentColumnFamily;
+
+  private ColumnFamilyHandle sentMessageIdToRecordIdColumnFamily;
+
+  private ColumnFamilyHandle receivedColumnFamily;
 
   private Thread outputThread;
 
   private BlockingQueue<CaughtMessageInfo> messagesBuffer = new LinkedBlockingQueue<>();
 
   private boolean debugging;
+
+  private Integer counter = 0;
+
+  private final String LOG_DB_PREFIX = "vertx-debug-";
+
+  private final String SENT_COUNT_KEY = "SENT_MESSAGES_COUNT";
+
+  private final String DEFAULT_COLUMN_FAMILY_NAME = "default";
+
+  private final String SENT_COLUMN_FAMILY_NAME = "SENT_MESSAGES";
+
+  private final String RECEIVED_COLUMN_FAMILY_NAME = "RECEIVED_MESSAGES";
+
+  private final String SENT_MESSAGEID_TO_RECORDID_COLUMN_FAMILY_NAME = "SENT_MESSAGEID_TO_RECORDID";
+
 
   public DebuggingVerticle(EventBus eventBus, String debuggingOutputPath) {
     this.eventBus = eventBus;
@@ -60,7 +78,6 @@ public class DebuggingVerticle extends AbstractVerticle {
     } catch (InterruptedException e) {
       e.printStackTrace();
     }
-    storage.close();
     System.out.println("Messages saved: " + counter);
     stopFuture.complete();
   }
@@ -96,18 +113,11 @@ public class DebuggingVerticle extends AbstractVerticle {
 
   private void startSavingMessages() {
     outputThread = new Thread(() -> {
-      String debuggingLog = "vertx-debug-" + LocalDateTime.now().toString().replaceAll("[:.]", "_");
-      String messagesInfoPath = debuggingOutputPath + File.separator + debuggingLog;
-      log.info("Start saving debugging info into file: " + messagesInfoPath);
-
-      RocksDB.loadLibrary();
-      try (final Options options = new Options().setCreateIfMissing(true)) {
-        storage = RocksDB.open(options, messagesInfoPath);
-
-        try {
-          CaughtMessageInfo messageInfo = null;
-
-          while (true) {
+      try {
+        createLogDatabase();
+        CaughtMessageInfo messageInfo = null;
+        while (true) {
+          try {
             if (messageInfo != null)
               saveMessage(messageInfo);
             else if (!debugging)
@@ -115,32 +125,89 @@ public class DebuggingVerticle extends AbstractVerticle {
 
             messageInfo = messagesBuffer.poll(1, TimeUnit.SECONDS);
           }
-        } catch (InterruptedException e) {
-          e.printStackTrace();
+          catch (Exception err) {
+            err.printStackTrace();
+          }
         }
-      } catch (RocksDBException err) {
+        storage.put(SENT_COUNT_KEY.getBytes(), counter.toString().getBytes());
+        closeLogDatabase();
+      }
+      catch (RocksDBException err) {
+        log.error("Can't create log database.");
         err.printStackTrace();
       }
-
     });
     outputThread.start();
   }
 
-  private void saveMessage(CaughtMessageInfo caughtMessageInfo) {
-    JsonObject messageInfo = createMessageEntity(caughtMessageInfo);
+  private void createLogDatabase() throws RocksDBException {
+    String logPath = getLogPath();
+    RocksDB.loadLibrary();
 
+    List<ColumnFamilyHandle> columnFamilyHandles = new ArrayList<>();
+    List<ColumnFamilyDescriptor> columnFamilyDescriptors = Arrays.asList(
+      new ColumnFamilyDescriptor(DEFAULT_COLUMN_FAMILY_NAME.getBytes()),
+      new ColumnFamilyDescriptor(SENT_COLUMN_FAMILY_NAME.getBytes()),
+      new ColumnFamilyDescriptor(RECEIVED_COLUMN_FAMILY_NAME.getBytes()),
+      new ColumnFamilyDescriptor(SENT_MESSAGEID_TO_RECORDID_COLUMN_FAMILY_NAME.getBytes())
+    );
+
+    storageOptions = new DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
+    storage = RocksDB.open(storageOptions, logPath, columnFamilyDescriptors, columnFamilyHandles);
+
+    sentColumnFamily = columnFamilyHandles.get(1);
+    receivedColumnFamily = columnFamilyHandles.get(2);
+    sentMessageIdToRecordIdColumnFamily = columnFamilyHandles.get(3);
+
+    log.info("Start saving debugging info into file: " + logPath);
+  }
+
+  private String getLogPath() {
+    String currentDateTime = LocalDateTime.now().toString().replaceAll("[:.]", "_");
+    String debuggingLog = LOG_DB_PREFIX + currentDateTime;
+    return debuggingOutputPath + File.separator + debuggingLog;
+  }
+
+  private void closeLogDatabase() {
+    sentColumnFamily.close();
+    receivedColumnFamily.close();
+    sentMessageIdToRecordIdColumnFamily.close();
+    storageOptions.close();
+    storage.close();
+  }
+
+  private void saveMessage(CaughtMessageInfo caughtMessageInfo) {
+    Pair<String, JsonObject> messageEntity = null;
+    ColumnFamilyHandle targetColumnHandle = null;
+
+    if (caughtMessageInfo.getMessageType().equals(MessageType.sent)) {
+      messageEntity = createSentMessageEntity(caughtMessageInfo);
+      targetColumnHandle = sentColumnFamily;
+    }
+    else if (caughtMessageInfo.getMessageType().equals(MessageType.received)) {
+      messageEntity = createReceivedMessageEntity(caughtMessageInfo);
+      targetColumnHandle = receivedColumnFamily;
+    }
+
+    saveMessage(targetColumnHandle, messageEntity);
+
+  }
+
+  private void saveMessage(ColumnFamilyHandle targetColumnHandle, Pair<String, JsonObject> messageEntity) {
     try {
-      String id = messageInfo.getInteger("recordId").toString();
-      String content = messageInfo.toString();
-      storage.put(id.getBytes(), content.getBytes());
+      storage.put(targetColumnHandle, messageEntity.key.getBytes(), messageEntity.value.toString().getBytes());
+
+      if (targetColumnHandle == sentColumnFamily) {
+        String messageId = messageEntity.value.getString("messageId");
+        storage.put(sentMessageIdToRecordIdColumnFamily, messageId.getBytes(), messageEntity.key.getBytes());
+      }
     }
     catch (RocksDBException e) {
       e.printStackTrace();
     }
-
   }
 
-  private JsonObject createMessageEntity(CaughtMessageInfo caughtMessageInfo) {
+  private Pair<String, JsonObject> createSentMessageEntity(CaughtMessageInfo caughtMessageInfo) {
     Message message = caughtMessageInfo.getMessage();
     MultiMap tmpHeaders = new CaseInsensitiveHeaders();
     tmpHeaders.addAll(message.headers());
@@ -148,10 +215,9 @@ public class DebuggingVerticle extends AbstractVerticle {
     DebuggingHeader debuggingHeader = DebuggingHeader.fromJsonString(debuggingHeaderString);
     tmpHeaders.remove(DebuggingHeader.DEBUGGING_HEADER_NAME);
 
+    String key = (++counter).toString();
     JsonObject jsonObject = new JsonObject();
-    jsonObject.put("recordId", ++counter);
-    jsonObject.put("type", caughtMessageInfo.getMessageType().name());
-    jsonObject.put("timestamp", caughtMessageInfo.getMessageOccuranceTime().getTime());
+    jsonObject.put("timestamp", caughtMessageInfo.getMessageOccuranceTime());
     jsonObject.put("messageId", debuggingHeader.getMessageId());
     jsonObject.put("prevMessageId", getStringValue(debuggingHeader.getPrevMessageId()));
     jsonObject.put("label", getStringValue(debuggingHeader.getDebuggingLabel()));
@@ -160,10 +226,40 @@ public class DebuggingVerticle extends AbstractVerticle {
     jsonObject.put("headers", getStringValue(tmpHeaders));
     jsonObject.put("body", getStringValue(message.body()));
 
-    return jsonObject;
+    return new Pair<>(key, jsonObject);
+  }
+
+  private Pair<String, JsonObject> createReceivedMessageEntity(CaughtMessageInfo caughtMessageInfo) {
+    Message message = caughtMessageInfo.getMessage();
+    String debuggingHeaderString = message.headers().get(DebuggingHeader.DEBUGGING_HEADER_NAME);
+    DebuggingHeader debuggingHeader = DebuggingHeader.fromJsonString(debuggingHeaderString);
+
+    String key = debuggingHeader.getMessageId();
+    JsonObject jsonObject = new JsonObject();
+    jsonObject.put("timestamp", caughtMessageInfo.getMessageOccuranceTime());
+
+    return new Pair<>(key, jsonObject);
   }
 
   private String getStringValue(Object object) {
     return object == null ? "" : object.toString();
+  }
+
+  private class Pair<K, V> {
+    private K key;
+    private V value;
+
+    public Pair(K key, V value) {
+      this.key = key;
+      this.value = value;
+    }
+
+    public K getKey() {
+      return key;
+    }
+
+    public V getValue() {
+      return value;
+    }
   }
 }

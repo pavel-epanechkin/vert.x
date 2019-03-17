@@ -47,7 +47,7 @@ public class EventBusDebuggingTest extends VertxDebuggingTestBase {
       msg.reply("Reply test2");
     });
 
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 1; i++) {
       producer.send("Test publisher send");
     }
 

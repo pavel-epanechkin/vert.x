@@ -8,12 +8,12 @@ public class CaughtMessageInfo {
 
   private Message message;
   private MessageType messageType;
-  private Date messageOccuranceTime;
+  private Long messageOccuranceTime;
 
   public CaughtMessageInfo(Message message, MessageType messageType) {
     this.message = message;
     this.messageType = messageType;
-    this.messageOccuranceTime = new Date(System.currentTimeMillis());
+    this.messageOccuranceTime = System.currentTimeMillis();
   }
 
   public Message getMessage() {
@@ -32,11 +32,11 @@ public class CaughtMessageInfo {
     this.messageType = messageType;
   }
 
-  public Date getMessageOccuranceTime() {
+  public Long getMessageOccuranceTime() {
     return messageOccuranceTime;
   }
 
-  public void setMessageOccuranceTime(Date messageOccuranceTime) {
+  public void setMessageOccuranceTime(Long messageOccuranceTime) {
     this.messageOccuranceTime = messageOccuranceTime;
   }
 }
