@@ -129,7 +129,8 @@ public class MessageImpl<U, V> implements Message<V> {
   @Override
   public <R> void reply(Object message, DeliveryOptions options, Handler<AsyncResult<Message<R>>> replyHandler) {
     if (replyAddress != null) {
-      sendReply(bus.createMessage(true, replyAddress, headers, message, options.getCodecName(), new DebuggingOptions("reply", this)), options, replyHandler);
+      sendReply(bus.createMessage(true, replyAddress, headers, message, options.getCodecName(),
+        new DebuggingOptions("reply", this)), options, replyHandler);
     }
   }
 

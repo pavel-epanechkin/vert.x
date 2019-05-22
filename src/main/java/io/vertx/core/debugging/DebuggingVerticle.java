@@ -1,5 +1,7 @@
 package io.vertx.core.debugging;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.MultiMap;
@@ -15,6 +17,7 @@ import java.io.File;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -31,6 +34,8 @@ public class DebuggingVerticle extends AbstractVerticle {
   private RocksDB storage;
 
   private DBOptions storageOptions;
+
+  private WriteOptions writeOptions;
 
   private ColumnFamilyHandle sentColumnFamily;
 
@@ -78,7 +83,7 @@ public class DebuggingVerticle extends AbstractVerticle {
     } catch (InterruptedException e) {
       e.printStackTrace();
     }
-    System.out.println("Messages saved: " + counter);
+    log.info("[" + LocalDateTime.now() + "] Messages saved: " + counter);
     stopFuture.complete();
   }
 
@@ -129,7 +134,7 @@ public class DebuggingVerticle extends AbstractVerticle {
             err.printStackTrace();
           }
         }
-        storage.put(SENT_COUNT_KEY.getBytes(), counter.toString().getBytes());
+        storage.put(writeOptions, SENT_COUNT_KEY.getBytes(), counter.toString().getBytes());
         closeLogDatabase();
       }
       catch (RocksDBException err) {
@@ -154,12 +159,13 @@ public class DebuggingVerticle extends AbstractVerticle {
 
     storageOptions = new DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
     storage = RocksDB.open(storageOptions, logPath, columnFamilyDescriptors, columnFamilyHandles);
+    writeOptions = new WriteOptions().setDisableWAL(true).setSync(false);
 
     sentColumnFamily = columnFamilyHandles.get(1);
     receivedColumnFamily = columnFamilyHandles.get(2);
     sentMessageIdToRecordIdColumnFamily = columnFamilyHandles.get(3);
 
-    log.info("Start saving debugging info into file: " + logPath);
+    log.info("[" + LocalDateTime.now() + "] Start saving debugging info into file: " + logPath);
   }
 
   private String getLogPath() {
@@ -173,6 +179,7 @@ public class DebuggingVerticle extends AbstractVerticle {
     receivedColumnFamily.close();
     sentMessageIdToRecordIdColumnFamily.close();
     storageOptions.close();
+    writeOptions.close();
     storage.close();
   }
 
@@ -195,11 +202,11 @@ public class DebuggingVerticle extends AbstractVerticle {
 
   private void saveMessage(ColumnFamilyHandle targetColumnHandle, Pair<String, JsonObject> messageEntity) {
     try {
-      storage.put(targetColumnHandle, messageEntity.key.getBytes(), messageEntity.value.toString().getBytes());
+      storage.put(targetColumnHandle, writeOptions, messageEntity.key.getBytes(), messageEntity.value.toString().getBytes());
 
       if (targetColumnHandle == sentColumnFamily) {
         String messageId = messageEntity.value.getString("messageId");
-        storage.put(sentMessageIdToRecordIdColumnFamily, messageId.getBytes(), messageEntity.key.getBytes());
+        storage.put(sentMessageIdToRecordIdColumnFamily, writeOptions, messageId.getBytes(), messageEntity.key.getBytes());
       }
     }
     catch (RocksDBException e) {
@@ -223,10 +230,20 @@ public class DebuggingVerticle extends AbstractVerticle {
     jsonObject.put("label", getStringValue(debuggingHeader.getDebuggingLabel()));
     jsonObject.put("targetAddress", getStringValue(message.address()));
     jsonObject.put("replyAddress", getStringValue(message.replyAddress()));
-    jsonObject.put("headers", getStringValue(tmpHeaders));
+    jsonObject.put("headers", getStringValue(getJsonFromObject(tmpHeaders.entries())));
     jsonObject.put("body", getStringValue(message.body()));
 
     return new Pair<>(key, jsonObject);
+  }
+
+  private String getJsonFromObject(Object object) {
+    ObjectMapper objectMapper = new ObjectMapper();
+    try {
+      return objectMapper.writeValueAsString(object);
+    } catch (JsonProcessingException e) {
+      e.printStackTrace();
+    }
+    return null;
   }
 
   private Pair<String, JsonObject> createReceivedMessageEntity(CaughtMessageInfo caughtMessageInfo) {

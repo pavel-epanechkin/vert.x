@@ -179,8 +179,9 @@ public class ClusteredEventBus extends EventBusImpl {
   protected MessageImpl createMessage(boolean send, String address, MultiMap headers, Object body, String codecName, DebuggingOptions debuggingOptions) {
     Objects.requireNonNull(address, "no null address accepted");
     MessageCodec codec = codecManager.lookupCodec(body, codecName);
+    MultiMap updateHeaders = prepareMessageHeaders(headers, debuggingOptions);
     @SuppressWarnings("unchecked")
-    ClusteredMessage msg = new ClusteredMessage(serverID, address, null, headers, body, codec, send, this, null);
+    ClusteredMessage msg = new ClusteredMessage(serverID, address, null, updateHeaders, body, codec, send, this, debuggingOptions);
     return msg;
   }
 

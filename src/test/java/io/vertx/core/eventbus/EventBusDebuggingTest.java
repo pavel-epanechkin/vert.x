@@ -24,12 +24,22 @@ public class EventBusDebuggingTest extends VertxDebuggingTestBase {
 
     EventBus eb = vertx.eventBus();
 
-    MessageProducer producer = eb.publisher("some-address").withDebuggingLabel("Sequence1-Action0");
+    MessageProducer producer = eb.publisher("some-address").withDebuggingLabel("Initial message");
+
+    MessageProducer producer2 = eb.publisher("some-address").withDebuggingLabel("Initial message2");
 
     eb.consumer("some-address", msg -> {
-      for (int i = 0; i < 10000; i++) {
-        eb.send("some-address1", "Send test1", new DebuggingOptions("Sequence1-Action1", msg));
-        eb.send("some-address2", "Send test2", new DebuggingOptions("Sequence11-Action1", msg), reply -> {
+      for (int i = 0; i < 100; i++) {
+        DeliveryOptions options = new DeliveryOptions();
+        options.addHeader("some-header1", "some-value1");
+        options.addHeader("some-header2", "some-value2");
+        options.addHeader("some-header3", "some-value3");
+        options.addHeader("some-header4", "some-value4");
+        options.addHeader("some-header5", "some-value5");
+        options.addHeader("some-header6", "some-veeeeeeeeeeeeery-long-value");
+
+        eb.send("some-address1", "Send test1", options,  new DebuggingOptions("Sequence1-Action1", msg));
+        eb.send("some-address2", "Send test2", new DebuggingOptions("Sequence2-Action1", msg), reply -> {
           String message = reply.result().body().toString();
         });
       }
@@ -47,12 +57,13 @@ public class EventBusDebuggingTest extends VertxDebuggingTestBase {
       msg.reply("Reply test2");
     });
 
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < 125; i++) {
       producer.send("Test publisher send");
+      producer2.send("Another test message");
     }
 
 
-    await(25, TimeUnit.SECONDS);
+    await(5, TimeUnit.SECONDS);
   }
 
 

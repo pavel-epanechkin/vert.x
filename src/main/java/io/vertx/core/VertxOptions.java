@@ -850,8 +850,9 @@ public class VertxOptions {
     return debugging;
   }
 
-  public void setDebugging(boolean debugging) {
+  public VertxOptions setDebugging(boolean debugging) {
     this.debugging = debugging;
+    return this;
   }
 
   public String getDebuggingOutputPath() {

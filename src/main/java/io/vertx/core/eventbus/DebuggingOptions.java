@@ -10,12 +10,12 @@ public class DebuggingOptions {
   private Message contextMessage;
 
   public DebuggingOptions(String debuggingContextLabel, Message contextMessage) {
-    this.debuggingContextLabel = debuggingContextLabel;
+    this.debuggingContextLabel = debuggingContextLabel == null ? getDefaultLabel() : debuggingContextLabel;
     this.contextMessage = contextMessage;
   }
 
   public DebuggingOptions(String debuggingContextLabel) {
-    this.debuggingContextLabel = debuggingContextLabel;
+    this.debuggingContextLabel = debuggingContextLabel == null ? getDefaultLabel() : debuggingContextLabel;
   }
 
   public DebuggingOptions(Message contextMessage) {

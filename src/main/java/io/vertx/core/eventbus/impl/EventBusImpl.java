@@ -274,6 +274,10 @@ public class EventBusImpl implements EventBus, MetricsProvider {
         DebuggingHeader contextMessageDebuggingHeader
           = DebuggingHeader.fromJsonString(contextMessageDebuggingHeaderObject.toString());
         prevMessageId = contextMessageDebuggingHeader.getMessageId();
+
+        if (debuggingLabel.equalsIgnoreCase("reply")) {
+          debuggingLabel = contextMessageDebuggingHeader.getDebuggingLabel() + "-" + debuggingLabel;
+        }
       }
     }
 
@@ -282,23 +286,30 @@ public class EventBusImpl implements EventBus, MetricsProvider {
     return debuggingHeader.toJsonString();
   }
 
-  protected MessageImpl createMessage(boolean send, String address, MultiMap headers, Object body,
-                                      String codecName, DebuggingOptions debuggingOptions) {
-    Objects.requireNonNull(address, "no null address accepted");
-    MessageCodec codec = codecManager.lookupCodec(body, codecName);
+  protected MultiMap prepareMessageHeaders(MultiMap messageHeaders, DebuggingOptions debuggingOptions) {
+    MultiMap resultHeaders = new CaseInsensitiveHeaders();
 
     if (vertx.isDebugging()) {
       String debuggingHeaderValue = prepareDebuggingHeader(debuggingOptions);
 
-      if (headers == null)
-        headers = new CaseInsensitiveHeaders();
+      if (messageHeaders == null)
+        resultHeaders = new CaseInsensitiveHeaders();
 
-      headers.remove(DebuggingHeader.DEBUGGING_HEADER_NAME);
-      headers.add(DebuggingHeader.DEBUGGING_HEADER_NAME, debuggingHeaderValue);
+      resultHeaders.remove(DebuggingHeader.DEBUGGING_HEADER_NAME);
+      resultHeaders.add(DebuggingHeader.DEBUGGING_HEADER_NAME, debuggingHeaderValue);
     }
 
+    return resultHeaders;
+  }
+
+  protected MessageImpl createMessage(boolean send, String address, MultiMap headers, Object body,
+                                      String codecName, DebuggingOptions debuggingOptions) {
+    Objects.requireNonNull(address, "no null address accepted");
+    MessageCodec codec = codecManager.lookupCodec(body, codecName);
+    MultiMap updateHeaders = prepareMessageHeaders(headers, debuggingOptions);
+
     @SuppressWarnings("unchecked")
-    MessageImpl msg = new MessageImpl(address, null, headers, body, codec, send, this);
+    MessageImpl msg = new MessageImpl(address, null, updateHeaders, body, codec, send, this);
     return msg;
   }
 
